@@ -73,7 +73,7 @@ def serialize_csv(headers, rows):
     writer = csv.DictWriter(output, fieldnames=headers, extrasaction="ignore", lineterminator="\r\n")
     writer.writeheader()
     writer.writerows(rows)
-    return ("\ufeff" + output.getvalue()).encode("utf-8-sig")
+    return output.getvalue().encode("utf-8-sig")
 
 
 def norm(header):
@@ -110,6 +110,10 @@ def is_media_column(header):
     return any(word in name for word in ("image", "media", "thumbnail", "video", "model 3d")) or name in {
         "src", "url", "preview",
     }
+
+
+def is_protected_column(header):
+    return norm(header) in NEVER_TRANSLATE_COLUMNS or is_media_column(header)
 
 
 def detect_plan(headers):
@@ -392,6 +396,15 @@ def apply_translation(rows, html_cells, item, translation):
     return True
 
 
+def restore_protected_cells(headers, original_rows, rows):
+    protected_headers = [header for header in headers if is_protected_column(header)]
+    for index, original in enumerate(original_rows):
+        if index >= len(rows):
+            break
+        for header in protected_headers:
+            rows[index][header] = original.get(header, "")
+
+
 def slug(text):
     return re.sub(r"\s+", "-", re.sub(r'[\\/:*?"<>|]+', "", text.strip().lower())) or "translated"
 
@@ -423,6 +436,7 @@ if not uploaded:
     st.stop()
 
 headers, rows = parse_csv(uploaded)
+original_rows = [dict(row) for row in rows]
 items, html_cells = make_items(headers, rows, empty_only, skip_machine_text)
 plan = detect_plan(headers)
 
@@ -464,6 +478,7 @@ if st.button("开始翻译", type="primary", disabled=not items):
             time.sleep(0.05)
         base = re.sub(r"\.csv$", "", uploaded.name, flags=re.I)
         st.session_state.translated_name = f"{base}-{slug(target_language)}-shopify.csv"
+        restore_protected_cells(headers, original_rows, rows)
         st.session_state.translated_csv = serialize_csv(headers, rows)
         st.success("翻译完成，可以下载 CSV。")
     except Exception as exc:
