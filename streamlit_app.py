@@ -11,14 +11,14 @@ from bs4 import BeautifulSoup, NavigableString
 st.set_page_config(page_title="Shopify CSV Translator", page_icon="CSV", layout="wide")
 
 LANGUAGE_OPTIONS = [
-    "Japanese", "Korean", "English", "German", "French", "Spanish", "Italian", "Portuguese",
-    "Dutch", "Swedish", "Norwegian", "Danish", "Finnish", "Polish", "Czech", "Hungarian",
-    "Romanian", "Bulgarian", "Greek", "Turkish", "Russian", "Ukrainian", "Arabic", "Hebrew",
-    "Hindi", "Thai", "Vietnamese", "Indonesian", "Malay", "Filipino", "Simplified Chinese",
-    "Traditional Chinese", "日语 Japanese", "韩语 Korean", "英语 English", "德语 German",
-    "法语 French", "西班牙语 Spanish", "意大利语 Italian", "葡萄牙语 Portuguese",
-    "荷兰语 Dutch", "匈牙利语 Hungarian", "泰语 Thai", "越南语 Vietnamese",
-    "阿拉伯语 Arabic", "俄语 Russian",
+    "日语 Japanese", "韩语 Korean", "英语 English", "德语 German", "法语 French",
+    "西班牙语 Spanish", "意大利语 Italian", "葡萄牙语 Portuguese", "荷兰语 Dutch",
+    "瑞典语 Swedish", "挪威语 Norwegian", "丹麦语 Danish", "芬兰语 Finnish",
+    "波兰语 Polish", "捷克语 Czech", "匈牙利语 Hungarian", "罗马尼亚语 Romanian",
+    "保加利亚语 Bulgarian", "希腊语 Greek", "土耳其语 Turkish", "俄语 Russian",
+    "乌克兰语 Ukrainian", "阿拉伯语 Arabic", "希伯来语 Hebrew", "印地语 Hindi",
+    "泰语 Thai", "越南语 Vietnamese", "印尼语 Indonesian", "马来语 Malay",
+    "菲律宾语 Filipino", "简体中文 Simplified Chinese", "繁体中文 Traditional Chinese",
 ]
 
 LANGUAGE_CODES = {
