@@ -6,7 +6,6 @@ import time
 
 import requests
 import streamlit as st
-from bs4 import BeautifulSoup, NavigableString
 
 st.set_page_config(page_title="Shopify CSV Translator", page_icon="CSV", layout="wide")
 
@@ -130,27 +129,67 @@ def preserve_padding(original, translated):
     return f"{leading}{str(translated).strip()}{trailing}"
 
 
+def html_text_segments(html):
+    segments = []
+    pos = 0
+    muted_depth = 0
+    muted_tags = {"script", "style", "noscript", "svg"}
+
+    for match in re.finditer(r"<[^>]*>", html):
+        if muted_depth == 0 and match.start() > pos:
+            text = html[pos:match.start()]
+            if not looks_non_translatable(text):
+                segments.append({"start": pos, "end": match.start(), "text": text})
+
+        tag = match.group(0)
+        tag_name_match = re.match(r"</?\s*([a-zA-Z0-9:-]+)", tag)
+        if tag_name_match:
+            tag_name = tag_name_match.group(1).lower()
+            if tag_name in muted_tags:
+                if tag.startswith("</"):
+                    muted_depth = max(0, muted_depth - 1)
+                elif not tag.endswith("/>"):
+                    muted_depth += 1
+        pos = match.end()
+
+    if muted_depth == 0 and pos < len(html):
+        text = html[pos:]
+        if not looks_non_translatable(text):
+            segments.append({"start": pos, "end": len(html), "text": text})
+    return segments
+
+
+def rebuild_html(original, segments, translations):
+    output = []
+    pos = 0
+    for index, segment in enumerate(segments):
+        output.append(original[pos:segment["start"]])
+        output.append(translations.get(index, segment["text"]))
+        pos = segment["end"]
+    output.append(original[pos:])
+    return "".join(output)
+
+
 def make_html_items(row, row_index, column):
     html = row.get(column["source"], "")
     if not html.strip():
         return [], None
-    soup = BeautifulSoup(html, "html.parser")
-    nodes = []
-    for node in soup.find_all(string=True):
-        parent = (node.parent.name or "").lower() if node.parent else ""
-        if parent in {"script", "style", "noscript", "svg"}:
-            continue
-        if not looks_non_translatable(str(node)):
-            nodes.append(node)
+    segments = html_text_segments(html)
     key = f"{row_index}:{column['target']}"
     items = []
-    for index, node in enumerate(nodes):
+    for index, segment in enumerate(segments):
         items.append({
-            "id": f"{key}:html:{index}", "text": str(node), "mode": "html", "html_key": key,
+            "id": f"{key}:html:{index}", "text": segment["text"], "mode": "html", "html_key": key,
             "segment_index": index, "row_index": row_index, "target_column": column["target"],
             "source_column": column["source"],
         })
-    return items, {"soup": soup, "nodes": nodes, "row_index": row_index, "target_column": column["target"]}
+    return items, {
+        "original": html,
+        "segments": segments,
+        "translations": {},
+        "row_index": row_index,
+        "target_column": column["target"],
+    }
 
 
 def make_items(headers, rows, empty_only, skip_machine_text):
@@ -293,9 +332,13 @@ def apply_translation(rows, html_cells, item, translation):
         cell = html_cells.get(item["html_key"])
         if not cell:
             return False
-        node = cell["nodes"][item["segment_index"]]
-        node.replace_with(NavigableString(preserve_padding(str(node), translation)))
-        rows[cell["row_index"]][cell["target_column"]] = str(cell["soup"])
+        segment = cell["segments"][item["segment_index"]]
+        cell["translations"][item["segment_index"]] = preserve_padding(segment["text"], translation)
+        rows[cell["row_index"]][cell["target_column"]] = rebuild_html(
+            cell["original"],
+            cell["segments"],
+            cell["translations"],
+        )
         return True
     rows[item["row_index"]][item["target_column"]] = translation
     return True
