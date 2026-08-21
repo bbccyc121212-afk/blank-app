@@ -1,19 +1,24 @@
-# 🎈 Blank app template
+# Shopify CSV Translator
 
-A simple Streamlit app template for you to modify!
+Shopify CSV 翻译工具的 Streamlit 部署版。
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
+## 使用
 
-### How to run it on your own machine
+1. 上传 Shopify 导出的 CSV。
+2. 选择目标语言。
+3. 选择翻译接口：千问 Qwen、DeepSeek、OpenAI 或免费翻译。
+4. 点击开始翻译。
+5. 下载翻译后的 CSV，再导回 Shopify。
 
-1. Install the requirements
+## Streamlit Secrets
 
-   ```
-   $ pip install -r requirements.txt
-   ```
+在 Streamlit App settings -> Secrets 里填写：
 
-2. Run the app
+```toml
+APP_PASSWORD = "你自己设置的访问密码"
+DASHSCOPE_API_KEY = "千问 API Key"
+DEEPSEEK_API_KEY = "DeepSeek API Key"
+OPENAI_API_KEY = "OpenAI API Key"
+```
 
-   ```
-   $ streamlit run streamlit_app.py
-   ```
+只用其中一个平台时，只填对应的 Key 即可。
