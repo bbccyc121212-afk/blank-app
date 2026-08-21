@@ -10,10 +10,34 @@ from bs4 import BeautifulSoup, NavigableString
 
 st.set_page_config(page_title="Shopify CSV Translator", page_icon="CSV", layout="wide")
 
+LANGUAGE_OPTIONS = [
+    "Japanese", "Korean", "English", "German", "French", "Spanish", "Italian", "Portuguese",
+    "Dutch", "Swedish", "Norwegian", "Danish", "Finnish", "Polish", "Czech", "Hungarian",
+    "Romanian", "Bulgarian", "Greek", "Turkish", "Russian", "Ukrainian", "Arabic", "Hebrew",
+    "Hindi", "Thai", "Vietnamese", "Indonesian", "Malay", "Filipino", "Simplified Chinese",
+    "Traditional Chinese", "日语 Japanese", "韩语 Korean", "英语 English", "德语 German",
+    "法语 French", "西班牙语 Spanish", "意大利语 Italian", "葡萄牙语 Portuguese",
+    "荷兰语 Dutch", "匈牙利语 Hungarian", "泰语 Thai", "越南语 Vietnamese",
+    "阿拉伯语 Arabic", "俄语 Russian",
+]
+
+LANGUAGE_CODES = {
+    "english": "en", "英语": "en", "japanese": "ja", "日语": "ja", "日文": "ja",
+    "korean": "ko", "韩语": "ko", "german": "de", "德语": "de", "french": "fr", "法语": "fr",
+    "spanish": "es", "西班牙语": "es", "italian": "it", "意大利语": "it",
+    "portuguese": "pt", "葡萄牙语": "pt", "dutch": "nl", "荷兰语": "nl",
+    "swedish": "sv", "norwegian": "no", "danish": "da", "finnish": "fi", "polish": "pl",
+    "czech": "cs", "hungarian": "hu", "匈牙利语": "hu", "romanian": "ro", "bulgarian": "bg",
+    "greek": "el", "turkish": "tr", "russian": "ru", "俄语": "ru", "ukrainian": "uk",
+    "arabic": "ar", "阿拉伯语": "ar", "hebrew": "iw", "hindi": "hi", "thai": "th", "泰语": "th",
+    "vietnamese": "vi", "越南语": "vi", "indonesian": "id", "malay": "ms", "filipino": "tl",
+    "simplified chinese": "zh-CN", "简体中文": "zh-CN", "traditional chinese": "zh-TW", "繁体中文": "zh-TW",
+}
+
 TRANSLATABLE_COLUMNS = {
-    "title", "body (html)", "body html", "body", "description", "content",
-    "seo title", "seo description", "meta title", "meta description",
-    "page title", "page description", "option1 value", "option2 value", "option3 value",
+    "title", "body (html)", "body html", "body", "description", "content", "seo title",
+    "seo description", "meta title", "meta description", "page title", "page description",
+    "option1 value", "option2 value", "option3 value",
 }
 
 NEVER_TRANSLATE_COLUMNS = {
@@ -24,17 +48,6 @@ NEVER_TRANSLATE_COLUMNS = {
     "variant taxable", "variant grams", "variant weight unit", "product category",
     "google shopping / google product category", "google shopping / gender",
     "google shopping / age group", "google shopping / condition", "google shopping / custom product",
-}
-
-LANGUAGE_CODES = {
-    "english": "en", "英文": "en", "japanese": "ja", "日文": "ja", "日语": "ja",
-    "chinese": "zh-CN", "中文": "zh-CN", "简体中文": "zh-CN",
-    "traditional chinese": "zh-TW", "繁体中文": "zh-TW", "korean": "ko", "韩语": "ko",
-    "german": "de", "德语": "de", "french": "fr", "法语": "fr", "spanish": "es", "西班牙语": "es",
-    "italian": "it", "意大利语": "it", "portuguese": "pt", "葡萄牙语": "pt",
-    "dutch": "nl", "荷兰语": "nl", "hungarian": "hu", "匈牙利语": "hu",
-    "russian": "ru", "俄语": "ru", "thai": "th", "泰文": "th",
-    "vietnamese": "vi", "越南语": "vi", "arabic": "ar", "阿拉伯语": "ar",
 }
 
 
@@ -62,7 +75,7 @@ def serialize_csv(headers, rows):
 
 
 def norm(header):
-    return header.lower().strip()
+    return str(header).lower().strip()
 
 
 def has_column(headers, name):
@@ -112,9 +125,9 @@ def looks_non_translatable(text):
 
 
 def preserve_padding(original, translated):
-    leading = re.match(r"^\s*", original).group(0)
-    trailing = re.search(r"\s*$", original).group(0)
-    return f"{leading}{translated.strip()}{trailing}"
+    leading = re.match(r"^\s*", str(original)).group(0)
+    trailing = re.search(r"\s*$", str(original)).group(0)
+    return f"{leading}{str(translated).strip()}{trailing}"
 
 
 def make_html_items(row, row_index, column):
@@ -130,10 +143,13 @@ def make_html_items(row, row_index, column):
         if not looks_non_translatable(str(node)):
             nodes.append(node)
     key = f"{row_index}:{column['target']}"
-    items = [{
-        "id": f"{key}:html:{i}", "text": str(node), "mode": "html", "html_key": key, "segment_index": i,
-        "row_index": row_index, "target_column": column["target"], "source_column": column["source"],
-    } for i, node in enumerate(nodes)]
+    items = []
+    for index, node in enumerate(nodes):
+        items.append({
+            "id": f"{key}:html:{index}", "text": str(node), "mode": "html", "html_key": key,
+            "segment_index": index, "row_index": row_index, "target_column": column["target"],
+            "source_column": column["source"],
+        })
     return items, {"soup": soup, "nodes": nodes, "row_index": row_index, "target_column": column["target"]}
 
 
@@ -163,7 +179,7 @@ def make_items(headers, rows, empty_only, skip_machine_text):
 
 
 def language_code(language):
-    raw = language.strip()
+    raw = str(language).strip()
     if re.match(r"^[a-z]{2,3}(-[A-Z]{2})?$", raw):
         return raw
     lower = raw.lower()
@@ -217,18 +233,22 @@ def translate_chat(provider, api_key, model, base_url, source_language, target_l
     if not api_key:
         raise RuntimeError("缺少 API Key：请在左侧填写，或在 Streamlit Secrets 里保存。")
     url = base_url.rstrip("/")
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {"sourceLanguage": source_language, "targetLanguage": target_language, "glossary": glossary, "items": items}
+
     if provider == "OpenAI":
         if not url.endswith("/responses"):
             url += "/responses"
         body = {
             "model": model,
             "instructions": "Translate Shopify ecommerce text. Preserve HTML, URLs, Liquid syntax, SKU-like codes, measurements, and brand names. Return only JSON array items with id and translation.",
-            "input": json.dumps({"sourceLanguage": source_language, "targetLanguage": target_language, "glossary": glossary, "items": items}, ensure_ascii=False),
+            "input": json.dumps(payload, ensure_ascii=False),
         }
-        response = requests.post(url, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json=body, timeout=180)
+        response = requests.post(url, headers=headers, json=body, timeout=180)
         data = response.json() if response.content else {}
         if response.status_code >= 400:
-            raise RuntimeError(data.get("error", {}).get("message", f"接口返回 HTTP {response.status_code}"))
+            err = data.get("error", {})
+            raise RuntimeError(err.get("message") if isinstance(err, dict) else err or f"接口返回 HTTP {response.status_code}")
         raw = data.get("output_text", "") or "\n".join(
             c.get("text", "") for o in data.get("output", []) for c in o.get("content", []) if c.get("text")
         )
@@ -241,13 +261,13 @@ def translate_chat(provider, api_key, model, base_url, source_language, target_l
         "model": model,
         "messages": [
             {"role": "system", "content": system},
-            {"role": "user", "content": json.dumps({"sourceLanguage": source_language, "targetLanguage": target_language, "glossary": glossary, "items": items}, ensure_ascii=False)},
+            {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
         ],
         "temperature": 0.1,
     }
     if provider == "DeepSeek" and model.startswith("deepseek-v4"):
         body["thinking"] = {"type": "disabled"}
-    response = requests.post(url, headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json=body, timeout=180)
+    response = requests.post(url, headers=headers, json=body, timeout=180)
     data = response.json() if response.content else {}
     if response.status_code >= 400:
         err = data.get("error", {})
@@ -295,8 +315,10 @@ st.caption("上传 CSV，选择语言，翻译后下载 Shopify 可导入的 CSV
 with st.sidebar:
     provider = st.selectbox("翻译接口", ["千问 Qwen", "DeepSeek", "OpenAI", "免费翻译"])
     default_model, default_base_url, _ = provider_defaults(provider)
-    target_language = st.text_input("目标语言", value="Japanese")
-    source_language = st.text_input("源语言", value="auto")
+    selected_language = st.selectbox("目标语言（可输入搜索）", LANGUAGE_OPTIONS, index=0)
+    custom_language = st.text_input("自定义语言（可选）", value="", placeholder="例如 Croatian / 克罗地亚语")
+    target_language = custom_language.strip() or selected_language
+    source_language = st.selectbox("源语言", ["auto"] + LANGUAGE_OPTIONS, index=0)
     model = st.text_input("模型", value=default_model, disabled=provider == "免费翻译")
     base_url = st.text_input("API 地址", value=default_base_url, disabled=provider == "免费翻译")
     manual_key = st.text_input("API Key", type="password")
@@ -320,6 +342,7 @@ with left:
 with right:
     st.subheader("识别结果")
     st.write(f"文件：`{uploaded.name}`")
+    st.write(f"目标语言：`{target_language}`")
     st.write(f"行数：`{len(rows)}`")
     st.write(f"列数：`{len(headers)}`")
     st.write(f"待翻译：`{len(items)}`")
