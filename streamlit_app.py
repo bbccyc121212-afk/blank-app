@@ -42,6 +42,9 @@ TRANSLATABLE_COLUMNS = {
 NEVER_TRANSLATE_COLUMNS = {
     "handle", "id", "variant sku", "sku", "vendor", "type", "tags", "published", "status",
     "image src", "image alt text", "gift card", "variant barcode", "variant price",
+    "image", "image position", "variant image", "media", "media src", "media image",
+    "media image url", "media image src", "media preview image", "media content type",
+    "media host", "external video url", "model 3d source", "video source",
     "variant compare at price", "variant inventory qty", "variant inventory tracker",
     "variant inventory policy", "variant fulfillment service", "variant requires shipping",
     "variant taxable", "variant grams", "variant weight unit", "product category",
@@ -102,6 +105,13 @@ def is_html_column(header):
     return norm(header) in {"body (html)", "body html", "body"}
 
 
+def is_media_column(header):
+    name = norm(header)
+    return any(word in name for word in ("image", "media", "thumbnail", "video", "model 3d")) or name in {
+        "src", "url", "preview",
+    }
+
+
 def detect_plan(headers):
     if is_translate_adapt(headers):
         return [{"source": "Default content", "target": "Translated content", "in_place": False}]
@@ -112,6 +122,8 @@ def looks_non_translatable(text):
     value = str(text).strip()
     if not value:
         return True
+    if looks_media_value(value):
+        return True
     if re.match(r"^https?://", value, re.I):
         return True
     if re.match(r"^[\w-]+/[\w/-]+$", value):
@@ -120,6 +132,38 @@ def looks_non_translatable(text):
         return True
     if re.match(r"^[A-Z0-9_-]{2,}$", value):
         return True
+    return False
+
+
+def looks_media_value(text):
+    value = str(text).strip()
+    if not value:
+        return False
+    lower = value.lower()
+    media_ext = r"\.(?:jpe?g|png|gif|webp|svg|avif|bmp|tiff?|mp4|mov|webm|m4v|glb|gltf)(?:[?#].*)?$"
+    if "cdn.shopify.com" in lower or "/cdn/shop/" in lower or "shopifycdn.net" in lower:
+        return True
+    if re.search(media_ext, lower):
+        return True
+    if re.match(r"^(?:https?:)?//", lower) and any(token in lower for token in ("/image", "/media", "/files/", "/videos/")):
+        return True
+    if lower.startswith(("<img", "<picture", "<video", "<source")):
+        return True
+    if lower.startswith(("{", "[")) and any(token in lower for token in ("image", "media", "src", "url", "preview_image")):
+        return True
+    parts = [part.strip() for part in re.split(r"[,|;\n]+", lower) if part.strip()]
+    if len(parts) > 1 and all(looks_media_value(part) for part in parts):
+        return True
+    return False
+
+
+def row_mentions_media(row):
+    for key, value in row.items():
+        key_text = norm(key)
+        value_text = str(value).lower()
+        if key_text in {"field", "key", "name", "type", "content type", "resource type"}:
+            if any(word in value_text for word in ("image", "media", "video", "thumbnail", "src", "url")):
+                return True
     return False
 
 
@@ -196,6 +240,8 @@ def make_items(headers, rows, empty_only, skip_machine_text):
     items, html_cells = [], {}
     for row_index, row in enumerate(rows):
         for column in detect_plan(headers):
+            if is_media_column(column["source"]) or is_media_column(column["target"]):
+                continue
             if is_html_column(column["source"]):
                 html_items, html_cell = make_html_items(row, row_index, column)
                 if html_cell and html_items:
@@ -205,6 +251,8 @@ def make_items(headers, rows, empty_only, skip_machine_text):
             text = row.get(column["source"], "")
             target = row.get(column["target"], "")
             if not text.strip():
+                continue
+            if looks_media_value(text) or (row_mentions_media(row) and looks_media_value(text)):
                 continue
             if not column["in_place"] and empty_only and target.strip():
                 continue
